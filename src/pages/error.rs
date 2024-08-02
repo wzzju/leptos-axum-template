@@ -1,17 +1,10 @@
 use crate::app::AppRoutes;
 use crate::components::*;
-use cfg_if::cfg_if;
+use http::status::StatusCode;
 use leptonic::components::prelude::*;
 use leptos::*;
 use log::error;
 use thiserror::Error;
-
-cfg_if! {
-    if #[cfg(feature = "ssr")] {
-        use leptos_actix::ResponseOptions;
-        use actix_web::http::StatusCode;
-    }
-}
 
 #[derive(Clone, Debug, Error)]
 pub enum AppError {
@@ -20,7 +13,6 @@ pub enum AppError {
 }
 
 impl AppError {
-    #[cfg(feature = "ssr")]
     pub fn status_code(&self) -> StatusCode {
         match self {
             AppError::NotFound => StatusCode::NOT_FOUND,
@@ -56,26 +48,14 @@ pub fn ErrorPage(
 
     // Only the response code for the first error is actually sent from the server
     // this may be customized by the specific application
-    cfg_if! {
-        if #[cfg(feature = "ssr")] {
-            let response = use_context::<ResponseOptions>();
-            if let Some(response) = response {
-                response.set_status(errors[0].status_code());
-            }
+    #[cfg(feature = "ssr")]
+    {
+        use leptos_axum::ResponseOptions;
+        let response = use_context::<ResponseOptions>();
+        if let Some(response) = response {
+            response.set_status(errors[0].status_code());
         }
     }
-    let children = move |(_index, error)| match error {
-        AppError::NotFound => {
-            cfg_if! {
-                if #[cfg(feature = "ssr")] {
-                    let err_msg = error.status_code().to_string();
-                } else {
-                    let err_msg = error.to_string();
-                }
-            }
-            view! { <P id="whoops">{err_msg}</P> }
-        }
-    };
 
     view! {
         <PageTitle text="Not Found"/>
@@ -90,9 +70,17 @@ pub fn ErrorPage(
             </H1>
 
             <For
+                // a function that returns the items we're iterating over; a signal is fine
                 each=move || { errors.clone().into_iter().enumerate() }
+                // a unique key for each item as a reference
                 key=|(index, _error)| *index
-                children=children
+                // renders each item to a view
+                children=move |error| {
+                    let error_string = error.1.to_string();
+                    let error_code = error.1.status_code().as_u16();
+                    let error_msg = format!("{error_code} - {error_string}");
+                    view! { <P id="whoops">{error_msg}</P> }
+                }
             />
 
             <LinkButton id="back-btn" href=AppRoutes::Home>

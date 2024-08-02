@@ -1,52 +1,39 @@
 #[cfg(feature = "ssr")]
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    use actix_files::Files;
-    use actix_web::*;
-    use leptos_axum_template::app::*;
+#[tokio::main]
+async fn main() {
+    use axum::Router;
     use dotenv::dotenv;
     use leptos::*;
-    use leptos_actix::{generate_route_list, LeptosRoutes};
+    use leptos_axum::{generate_route_list, LeptosRoutes};
+    use leptos_axum_template::app::*;
+    use leptos_axum_template::fileserv::file_and_error_handler;
     use log::info;
 
     dotenv().ok();
     env_logger::init();
 
+    // Setting get_configuration(None) means we'll be using cargo-leptos's env values
+    // For deployment these variables are:
+    // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
+    // Alternately a file can be specified such as Some("Cargo.toml")
+    // The file would need to be included with the executable when moved to deployment
     let conf = get_configuration(None).await.unwrap();
-    let addr = conf.leptos_options.site_addr;
+    let leptos_options = conf.leptos_options;
+    let addr = leptos_options.site_addr;
     // Generate the list of routes in your Leptos App
     let routes = generate_route_list(App);
+
+    // build our application with a route
+    let app = Router::new()
+        .leptos_routes(&leptos_options, routes, App)
+        .fallback(file_and_error_handler)
+        .with_state(leptos_options);
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     info!("listening on http://{}", &addr);
-
-    HttpServer::new(move || {
-        let leptos_options = &conf.leptos_options;
-        let site_root = &leptos_options.site_root;
-
-        App::new()
-            // serve JS/WASM/CSS from `pkg`
-            .service(Files::new("/pkg", format!("{site_root}/pkg")))
-            // serve other assets from the `assets` directory
-            .service(Files::new("/assets", site_root))
-            // serve the logo from /logo.png
-            .service(logo)
-            .leptos_routes(leptos_options.to_owned(), routes.to_owned(), App)
-            .app_data(web::Data::new(leptos_options.to_owned()))
-    })
-    .bind(&addr)?
-    .run()
-    .await
-}
-
-#[cfg(feature = "ssr")]
-#[actix_web::get("logo.png")]
-async fn logo(
-    leptos_options: actix_web::web::Data<leptos::LeptosOptions>,
-) -> actix_web::Result<actix_files::NamedFile> {
-    let leptos_options = leptos_options.into_inner();
-    let site_root = &leptos_options.site_root;
-    Ok(actix_files::NamedFile::open(format!(
-        "{site_root}/logo.png"
-    ))?)
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 }
 
 #[cfg(not(any(feature = "ssr", feature = "csr")))]

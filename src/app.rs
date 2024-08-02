@@ -15,17 +15,15 @@ pub enum AppRoutes {
     Draw,
     Calculator,
     Chat,
-    NotFound,
 }
 
 impl AppRoutes {
     pub const fn route(self) -> &'static str {
         match self {
-            Self::Home => "",
-            Self::Draw => "draw",
-            Self::Calculator => "calculator",
-            Self::Chat => "chat",
-            Self::NotFound => "*any",
+            Self::Home => "/",
+            Self::Draw => "/draw",
+            Self::Calculator => "/calculator",
+            Self::Chat => "/chat",
         }
     }
 }
@@ -40,7 +38,7 @@ impl std::fmt::Display for AppRoutes {
 /// Required so that `Routes` variants can be used in `<Link href=Routes::Foo ...>` definitions.
 impl ToHref for AppRoutes {
     fn to_href(&self) -> Box<dyn Fn() -> String + '_> {
-        Box::new(move || format!("/{}", self.route()))
+        Box::new(move || self.route().to_string())
     }
 }
 
@@ -109,30 +107,29 @@ pub fn App() -> impl IntoView {
 
         <Stylesheet id="leptos" href=format!("/pkg/{LEPTOS_OUTPUT_NAME}.css")/>
 
-        <MetaLink rel="icon" href="/assets/favicon.ico"/>
-        <MetaLink rel="apple-touch-icon" href="/logo.png"/>
+        <MetaLink rel="icon" href="/images/favicon.ico"/>
+        <MetaLink rel="apple-touch-icon" href="/images/logo.png"/>
 
         <Title text="Welcome to leptos-axum-template"/>
 
         <Root default_theme=LeptonicTheme::default()>
-            <Router trailing_slash=TrailingSlash::Redirect>
+            <Router
+                trailing_slash=TrailingSlash::Redirect
+                fallback=|| {
+                    let mut outside_errors = Errors::default();
+                    outside_errors.insert_with_default_key(AppError::NotFound);
+                    view! { <ErrorPage outside_errors/> }.into_view()
+                }
+            >
+
                 <MainLayout>
                     <Routes>
-                        <Route path="" view=|| view! { <SideLayout/> }>
+                        <Route path="/" view=|| view! { <SideLayout/> }>
                             <Route path=AppRoutes::Home view=HomePage/>
                             <Route path=AppRoutes::Draw view=DrawPage/>
                             <Route path=AppRoutes::Calculator view=CalculatorPage/>
                             <Route path=AppRoutes::Chat view=ChatPage/>
                         </Route>
-                        <Route
-                            path=AppRoutes::NotFound
-                            view=|| {
-                                let mut outside_errors = Errors::default();
-                                outside_errors.insert_with_default_key(AppError::NotFound);
-                                view! { <ErrorPage outside_errors/> }
-                            }
-                        />
-
                     </Routes>
                 </MainLayout>
             </Router>

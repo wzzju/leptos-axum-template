@@ -32,7 +32,7 @@ pub fn MainLayout(#[prop(optional)] children: Option<Children>) -> impl IntoView
     let logo = move || {
         view! {
             <Link href=AppRoutes::Home>
-                <img src="/logo.png" id="logo" alt="Home"/>
+                <img src="/images/logo.png" id="logo" alt="Home"/>
             </Link>
         }
     };

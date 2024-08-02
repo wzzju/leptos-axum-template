@@ -1,5 +1,7 @@
 pub mod app;
 pub mod components;
+#[cfg(feature = "ssr")]
+pub mod fileserv;
 pub mod layouts;
 pub mod pages;
 
